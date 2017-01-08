@@ -1,0 +1,14 @@
+[
+	{
+		"job": "example",
+		"command": "example.sh",
+		"dir": "example",
+		"env": ["EXAMPLE=FOO BAR BAZ"]
+	},
+	{
+		"job": "example",
+		"command": "example.sh",
+		"dir": "example",
+		"env": ["EXAMPLE=FOO BAR BAZ"]
+	}
+]
