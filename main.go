@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"syscall"
 	// "bytes"
 	"encoding/json"
 	"errors"
@@ -114,7 +115,7 @@ func getCmd(execConf ExecConf) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
-func runJob(execConf ExecConf, w http.ResponseWriter) (*ProcessOutput, error) {
+func runJob(execConf ExecConf, w http.ResponseWriter, finish chan int) (*ProcessOutput, error) {
 	cmd, err := getCmd(execConf)
 
 	if err != nil {
@@ -137,6 +138,17 @@ func runJob(execConf ExecConf, w http.ResponseWriter) (*ProcessOutput, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	go func() {
+		err := cmd.Wait()
+
+		if err == nil {
+			finish <- 0
+		} else if exitError, ok := err.(*exec.ExitError); ok {
+			waitStatus := exitError.Sys().(syscall.WaitStatus)
+			finish <- waitStatus.ExitStatus()
+		}
+	}()
 
 	return &ProcessOutput{stdout, stderr}, nil
 }
@@ -224,25 +236,37 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 
 	for _, execConf := range execConfigs {
 
-		outputs, err := runJob(execConf, w)
+		jobEnd := make(chan int)
+
+		outputs, err := runJob(execConf, w, jobEnd)
 
 		if outputs == nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		if runJobErr, ok := err.(*exec.ExitError); ok {
+		if err != nil {
 			log.WithFields(log.Fields{
 				"step": "runJob",
 				"job":  r.Header.Get("X-HOOK-JOB"),
-			}).Error(runJobErr)
+			}).Error(err)
 
-			http.Error(w, runJobErr.Error(), http.StatusInternalServerError)
+			http.Error(w, "Unkown error", http.StatusInternalServerError)
 
 			w.Write([]byte("\n"))
 		}
 
 		writeProcessOutput(outputs, w)
+
+		exitCode := <-jobEnd
+
+		if exitCode != 0 {
+			log.WithFields(log.Fields{
+				"job":      r.Header.Get("X-HOOK-JOB"),
+				"exitCode": exitCode,
+			}).Error(errors.New("Job aborted"))
+			break
+		}
 	}
 
 	log.WithFields(log.Fields{
