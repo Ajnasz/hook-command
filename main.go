@@ -2,12 +2,13 @@ package main
 
 import (
 	"bufio"
-	"bytes"
+	// "bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/kelseyhightower/envconfig"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os/exec"
@@ -36,6 +37,12 @@ var config Config
 // ErrNoExecConf an error which used when no execution configuration foiund for a key
 var ErrNoExecConf = errors.New("No execConf found")
 
+// ProcessOutput a struct to store process std out and std err
+type ProcessOutput struct {
+	Stdout io.ReadCloser
+	Stderr io.ReadCloser
+}
+
 func hasValidToken(r *http.Request) bool {
 	return r.Header.Get("X-HOOK-TOKEN") == config.Token
 }
@@ -47,10 +54,20 @@ func getExecConfigs(r *http.Request) ([]ExecConf, error) {
 		return nil, nil
 	}
 
-	file, err := ioutil.ReadFile(config.ConfigFile)
+	configFilePath, err := filepath.Abs(config.ConfigFile)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"configFilePath": configFilePath,
+		}).Error(err)
+		return nil, err
+	}
+
+	file, err := ioutil.ReadFile(configFilePath)
 
 	if err != nil {
-		log.Error("Configuration file not found")
+		log.WithFields(log.Fields{
+			"configFilePath": configFilePath,
+		}).Error(err)
 		return nil, err
 	}
 
@@ -69,14 +86,8 @@ func getExecConfigs(r *http.Request) ([]ExecConf, error) {
 	return output, nil
 }
 
-// ProcessOutput a struct to store process std out and std err
-type ProcessOutput struct {
-	Stdout []byte
-	Stderr []byte
-}
-
-func runJob(execConf ExecConf, w http.ResponseWriter) (*ProcessOutput, error) {
-	cmd := exec.Cmd{
+func getCmd(execConf ExecConf) (*exec.Cmd, error) {
+	cmd := &exec.Cmd{
 		Path: filepath.Join(execConf.Command),
 	}
 
@@ -100,6 +111,16 @@ func runJob(execConf ExecConf, w http.ResponseWriter) (*ProcessOutput, error) {
 		cmd.Dir = filepath.Join(config.ScriptsDir, execConf.Dir)
 	}
 
+	return cmd, nil
+}
+
+func runJob(execConf ExecConf, w http.ResponseWriter) (*ProcessOutput, error) {
+	cmd, err := getCmd(execConf)
+
+	if err != nil {
+		return nil, err
+	}
+
 	stdout, err := cmd.StdoutPipe()
 
 	if err != nil {
@@ -112,27 +133,58 @@ func runJob(execConf ExecConf, w http.ResponseWriter) (*ProcessOutput, error) {
 		return nil, err
 	}
 
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-
-	stdoutBytes, err := ioutil.ReadAll(stdout)
-
+	err = cmd.Start()
 	if err != nil {
 		return nil, err
 	}
 
-	stderrBytes, err := ioutil.ReadAll(stderr)
+	return &ProcessOutput{stdout, stderr}, nil
+}
 
-	if err != nil {
-		return nil, err
+func scanIO(io io.Reader, c chan []byte, done chan int) {
+	scanner := bufio.NewScanner(io)
+	for scanner.Scan() {
+		c <- scanner.Bytes()
 	}
 
-	if err := cmd.Wait(); err != nil {
-		return &ProcessOutput{stdoutBytes, stderrBytes}, err
-	}
+	done <- 1
+}
 
-	return &ProcessOutput{stdoutBytes, stderrBytes}, nil
+func hasConfigs(execConfigs []ExecConf) bool {
+	return len(execConfigs) > 0
+}
+
+func writeProcessOutput(outputs *ProcessOutput, w http.ResponseWriter) {
+	flusher := w.(http.Flusher)
+
+	oChan := make(chan []byte)
+	eChan := make(chan []byte)
+	q := make(chan int)
+
+	go scanIO(outputs.Stdout, oChan, q)
+	go scanIO(outputs.Stderr, eChan, q)
+
+	qnum := 0
+	for {
+		select {
+		case errBytes := <-eChan:
+			w.Write([]byte("ERR: "))
+			w.Write(errBytes)
+			w.Write([]byte("\n"))
+			flusher.Flush()
+		case outBytes := <-oChan:
+			w.Write([]byte("OUT: "))
+			w.Write(outBytes)
+			w.Write([]byte("\n"))
+			flusher.Flush()
+		case <-q:
+			qnum++
+		}
+
+		if qnum >= 2 {
+			break
+		}
+	}
 }
 
 // HomeHandler Handles requests to the root path
@@ -158,13 +210,17 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(execConfigs) == 0 {
+	if !hasConfigs(execConfigs) {
 		log.WithFields(log.Fields{
 			"job": r.Header.Get("X-HOOK-JOB"),
 		}).Error("Configuration not found")
 		http.NotFound(w, r)
 		return
 	}
+
+	log.WithFields(log.Fields{
+		"job": r.Header.Get("X-HOOK-JOB"),
+	}).Info("Job start")
 
 	for _, execConf := range execConfigs {
 
@@ -177,39 +233,21 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 
 		if runJobErr, ok := err.(*exec.ExitError); ok {
 			log.WithFields(log.Fields{
-				"step":   "runJob",
-				"job":    r.Header.Get("X-HOOK-JOB"),
-				"stdout": string(outputs.Stdout),
-				"stderr": string(outputs.Stderr),
+				"step": "runJob",
+				"job":  r.Header.Get("X-HOOK-JOB"),
 			}).Error(runJobErr)
 
 			http.Error(w, runJobErr.Error(), http.StatusInternalServerError)
 
 			w.Write([]byte("\n"))
-			return
 		}
 
-		if outputs.Stdout != nil {
-			stdOutScanner := bufio.NewScanner(bytes.NewReader(outputs.Stdout))
-			for stdOutScanner.Scan() {
-				w.Write([]byte("OUT: "))
-				w.Write(stdOutScanner.Bytes())
-				w.Write([]byte("\n"))
-			}
-		}
-
-		if outputs.Stderr != nil {
-			stdErrScanner := bufio.NewScanner(bytes.NewReader(outputs.Stderr))
-			for stdErrScanner.Scan() {
-				w.Write([]byte("ERR: "))
-				w.Write(stdErrScanner.Bytes())
-				w.Write([]byte("\n"))
-			}
-		}
+		writeProcessOutput(outputs, w)
 	}
+
 	log.WithFields(log.Fields{
 		"job": r.Header.Get("X-HOOK-JOB"),
-	}).Info("Job run")
+	}).Info("Job finished")
 
 }
 
