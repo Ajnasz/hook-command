@@ -19,8 +19,8 @@ import (
 // Config is a struct to define configuration
 type Config struct {
 	Port       int    `default:"10292"`
-	ConfigFile string `default:"./configuration.json"`
-	ScriptsDir string `default:"./scripts"`
+	ConfigFile string `required:"true"`
+	ScriptsDir string `required:"true"`
 	Token      string `required:"true"`
 }
 
