@@ -1,0 +1,23 @@
+[Unit]
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/hook-command
+StandardOutput=syslog
+User=www-data
+Group=www-data
+Restart=always
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+ProtectKernelTunables=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+Environment=PATH=/usr/local/bin/:/usr/bin:/usr/local/bin
+Environment=SCM_CONFIGFILE=/etc/hook-command.json
+Environment=SCM_SCRIPTSDIR=/usr/local/share/hook-command
+# Environment=SCM_TOKEN=CHANGE ME
+
+[Install]
+WantedBy=multi-user.target
