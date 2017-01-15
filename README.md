@@ -53,8 +53,11 @@ Example:
 
 A random string to authorize access to the commands. Use very long token to prevent brute force attacks
 
+To generate a token you can try this:
+`head -c 32 /dev/random | sha256sum`
+
 Example:
-`HCMD_TOKEN=2292kjdfkjasdf923rkjlakjfd0239jalkdsjf201laanb56jjxxwq`
+`HCMD_TOKEN=a06c43b409c72be4cd8421da451f40e4a94cb53a0ff48fa233c10312437a5d41`
 
 
 ## Job configuration
