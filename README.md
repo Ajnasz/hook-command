@@ -9,7 +9,7 @@ cp configuration.example.json configuration.json
 Run the server
 
 ```
-SCM_TOKEN='a screct TOKEN 1112$$&&% what Noone will know!' go run main.go
+HCMD_SCRIPTS_DIR=scripts HCMD_CONFIG_FILE=configuration.json HCMD_TOKEN='a screct TOKEN 1112$$&&% what Noone will know!' go run main.go
 ```
 
 And call the server:
