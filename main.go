@@ -322,7 +322,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func init() {
-	err := envconfig.Process("scm", &config)
+	err := envconfig.Process("HCMD", &config)
 
 	if err != nil {
 		log.Fatal(err)
