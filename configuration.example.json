@@ -7,7 +7,7 @@
 	},
 	{
 		"job": "example",
-		"command": "example.sh",
+		"command": "example2.sh",
 		"dir": "example",
 		"env": ["EXAMPLE=FOO BAR BAZ"]
 	}
