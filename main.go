@@ -199,6 +199,50 @@ func writeProcessOutput(outputs *ProcessOutput, w http.ResponseWriter) {
 	}
 }
 
+// JSONBody defines the json format of request body
+type JSONBody struct {
+	Env map[string]string `json:"ENV"`
+}
+
+func getJSONBody(r *http.Request) (*JSONBody, error) {
+	decoder := json.NewDecoder(r.Body)
+
+	var output JSONBody
+
+	err := decoder.Decode(&output)
+
+	if err != nil {
+		log.WithError(err).Error("Could not parse request body")
+		return nil, err
+	}
+
+	defer r.Body.Close()
+
+	return &output, nil
+}
+
+func extendExecConfig(execConfig ExecConf, jsonBody *JSONBody) ExecConf {
+	for name, value := range jsonBody.Env {
+		execConfig.Env = append(execConfig.Env, fmt.Sprintf("%s=%s", name, value))
+	}
+
+	return execConfig
+}
+
+func extendExecConfigs(r *http.Request, execConfigs []ExecConf) []ExecConf {
+	body, err := getJSONBody(r)
+
+	if err != nil {
+		return execConfigs
+	}
+
+	for i, execConfig := range execConfigs {
+		execConfigs[i] = extendExecConfig(execConfig, body)
+	}
+
+	return execConfigs
+}
+
 // HomeHandler Handles requests to the root path
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
 
@@ -229,6 +273,8 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+
+	execConfigs = extendExecConfigs(r, execConfigs)
 
 	log.WithFields(log.Fields{
 		"job": r.Header.Get("X-HOOK-JOB"),
