@@ -55,3 +55,15 @@ A random string to authorize access to the commands. Use very long token to prev
 
 Example:
 `HCMD_TOKEN=2292kjdfkjasdf923rkjlakjfd0239jalkdsjf201laanb56jjxxwq`
+
+
+## Job configuration
+
+The job configurations are stored in a json file, see configuration.example.json.
+
+The following configuration options are available for a command:
+
+- *job*: The name of the job. When you call the service, the value of the `X-Hook-Job` header must match with this value.
+- *command*: The name of the executable
+- *dir*: The name of the working directory for the command
+- *env*: List of environment variables
