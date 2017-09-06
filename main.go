@@ -16,33 +16,10 @@ import (
 	"path/filepath"
 )
 
-// Config is a struct to define configuration
-type Config struct {
-	Port       int    `default:"10292"`
-	ConfigFile string `required:"true"`
-	ScriptsDir string `required:"true"`
-	Token      string `required:"true"`
-}
-
-// ExecConf is a struct to define configuration of execution configs
-type ExecConf struct {
-	Job     string   `json:"job"`
-	Command string   `json:"command"`
-	Args    []string `json:"args"`
-	Env     []string `json:"env"`
-	Dir     string   `json:"dir"`
-}
-
 var config Config
 
 // ErrNoExecConf an error which used when no execution configuration foiund for a key
 var ErrNoExecConf = errors.New("No execConf found")
-
-// ProcessOutput a struct to store process std out and std err
-type ProcessOutput struct {
-	Stdout io.ReadCloser
-	Stderr io.ReadCloser
-}
 
 func hasValidToken(r *http.Request) bool {
 	return r.Header.Get("X-HOOK-TOKEN") == config.Token
