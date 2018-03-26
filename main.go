@@ -146,31 +146,31 @@ func hasConfigs(execConfigs []ExecConf) bool {
 func writeProcessOutput(outputs *ProcessOutput, w http.ResponseWriter) {
 	flusher := w.(http.Flusher)
 
-	oChan := make(chan []byte)
-	eChan := make(chan []byte)
+	outputChan := make(chan []byte)
+	errorChan := make(chan []byte)
 	q := make(chan int)
 
-	go scanIO(outputs.Stdout, oChan, q)
-	go scanIO(outputs.Stderr, eChan, q)
+	go scanIO(outputs.Stdout, outputChan, q)
+	go scanIO(outputs.Stderr, errorChan, q)
 
-	qnum := 0
+	quitCount := 0
 	for {
 		select {
-		case errBytes := <-eChan:
+		case errBytes := <-errorChan:
 			w.Write([]byte("ERR: "))
 			w.Write(errBytes)
 			w.Write([]byte("\n"))
 			flusher.Flush()
-		case outBytes := <-oChan:
+		case outBytes := <-outputChan:
 			w.Write([]byte("OUT: "))
 			w.Write(outBytes)
 			w.Write([]byte("\n"))
 			flusher.Flush()
 		case <-q:
-			qnum++
+			quitCount++
 		}
 
-		if qnum >= 2 {
+		if quitCount >= 2 {
 			break
 		}
 	}
@@ -206,18 +206,18 @@ func extendExecConfig(execConfig ExecConf, jsonBody *JSONBody) ExecConf {
 	return execConfig
 }
 
-func extendExecConfigs(r *http.Request, execConfigs []ExecConf) []ExecConf {
+func extendExecConfigs(r *http.Request, execConfigs []ExecConf) ([]ExecConf, error) {
 	body, err := getJSONBody(r)
 
 	if err != nil {
-		return execConfigs
+		return nil, err
 	}
 
 	for i, execConfig := range execConfigs {
 		execConfigs[i] = extendExecConfig(execConfig, body)
 	}
 
-	return execConfigs
+	return execConfigs, nil
 }
 
 // HomeHandler Handles requests to the root path
@@ -248,10 +248,16 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 			"job": r.Header.Get("X-HOOK-JOB"),
 		}).Error("Configuration not found")
 		http.NotFound(w, r)
+
 		return
 	}
 
-	execConfigs = extendExecConfigs(r, execConfigs)
+	execConfigs, err = extendExecConfigs(r, execConfigs)
+
+	if err != nil {
+		http.Error(w, "BadRequest", http.StatusBadRequest)
+		return
+	}
 
 	log.WithFields(log.Fields{
 		"job": r.Header.Get("X-HOOK-JOB"),
