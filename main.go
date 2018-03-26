@@ -169,31 +169,31 @@ func hasConfigs(execConfigs []ExecConf) bool {
 func writeProcessOutput(outputs *ProcessOutput, w http.ResponseWriter) {
 	flusher := w.(http.Flusher)
 
-	oChan := make(chan []byte)
-	eChan := make(chan []byte)
+	outputChan := make(chan []byte)
+	errorChan := make(chan []byte)
 	q := make(chan int)
 
-	go scanIO(outputs.Stdout, oChan, q)
-	go scanIO(outputs.Stderr, eChan, q)
+	go scanIO(outputs.Stdout, outputChan, q)
+	go scanIO(outputs.Stderr, errorChan, q)
 
-	qnum := 0
+	quitCount := 0
 	for {
 		select {
-		case errBytes := <-eChan:
+		case errBytes := <-errorChan:
 			w.Write([]byte("ERR: "))
 			w.Write(errBytes)
 			w.Write([]byte("\n"))
 			flusher.Flush()
-		case outBytes := <-oChan:
+		case outBytes := <-outputChan:
 			w.Write([]byte("OUT: "))
 			w.Write(outBytes)
 			w.Write([]byte("\n"))
 			flusher.Flush()
 		case <-q:
-			qnum++
+			quitCount++
 		}
 
-		if qnum >= 2 {
+		if quitCount >= 2 {
 			break
 		}
 	}
