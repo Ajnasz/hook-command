@@ -229,18 +229,18 @@ func extendExecConfig(execConfig ExecConf, jsonBody *JSONBody) ExecConf {
 	return execConfig
 }
 
-func extendExecConfigs(r *http.Request, execConfigs []ExecConf) []ExecConf {
+func extendExecConfigs(r *http.Request, execConfigs []ExecConf) ([]ExecConf, error) {
 	body, err := getJSONBody(r)
 
 	if err != nil {
-		return execConfigs
+		return nil, err
 	}
 
 	for i, execConfig := range execConfigs {
 		execConfigs[i] = extendExecConfig(execConfig, body)
 	}
 
-	return execConfigs
+	return execConfigs, nil
 }
 
 // HomeHandler Handles requests to the root path
@@ -271,10 +271,16 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 			"job": r.Header.Get("X-HOOK-JOB"),
 		}).Error("Configuration not found")
 		http.NotFound(w, r)
+
 		return
 	}
 
-	execConfigs = extendExecConfigs(r, execConfigs)
+	execConfigs, err = extendExecConfigs(r, execConfigs)
+
+	if err != nil {
+		http.Error(w, "BadRequest", http.StatusBadRequest)
+		return
+	}
 
 	log.WithFields(log.Fields{
 		"job": r.Header.Get("X-HOOK-JOB"),
