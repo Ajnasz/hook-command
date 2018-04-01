@@ -18,15 +18,18 @@ import (
 
 var config Config
 
+const hookTokenHeaderName string = "X-HOOK-TOKEN"
+const hookJobHeaderName string = "X-HOOK-JOB"
+
 // ErrNoExecConf an error which used when no execution configuration foiund for a key
 var ErrNoExecConf = errors.New("No execConf found")
 
 func hasValidToken(r *http.Request) bool {
-	return r.Header.Get("X-HOOK-TOKEN") == config.Token
+	return r.Header.Get(hookTokenHeaderName) == config.Token
 }
 
 func getExecConfigs(r *http.Request) ([]ExecConf, error) {
-	job := r.Header.Get("X-HOOK-JOB")
+	job := r.Header.Get(hookJobHeaderName)
 
 	if job == "" {
 		return nil, nil
@@ -143,8 +146,7 @@ func hasConfigs(execConfigs []ExecConf) bool {
 	return len(execConfigs) > 0
 }
 
-func writeProcessOutput(outputs *ProcessOutput, w http.ResponseWriter) {
-	flusher := w.(http.Flusher)
+func writeProcessOutput(outputs *ProcessOutput, info io.Writer, err io.Writer) {
 
 	outputChan := make(chan []byte)
 	errorChan := make(chan []byte)
@@ -157,15 +159,9 @@ func writeProcessOutput(outputs *ProcessOutput, w http.ResponseWriter) {
 	for {
 		select {
 		case errBytes := <-errorChan:
-			w.Write([]byte("ERR: "))
-			w.Write(errBytes)
-			w.Write([]byte("\n"))
-			flusher.Flush()
+			err.Write(errBytes)
 		case outBytes := <-outputChan:
-			w.Write([]byte("OUT: "))
-			w.Write(outBytes)
-			w.Write([]byte("\n"))
-			flusher.Flush()
+			info.Write(outBytes)
 		case <-q:
 			quitCount++
 		}
@@ -220,22 +216,66 @@ func extendExecConfigs(r *http.Request, execConfigs []ExecConf) ([]ExecConf, err
 	return execConfigs, nil
 }
 
+// MiddlewareError middleware error struct
+type MiddlewareError struct {
+	Code      int
+	Text      string
+	LogFields log.Fields
+	Msg       string
+}
+
+const logLevelError string = "error"
+const logLevelInfo string = "info"
+
+type logger struct {
+	Fields   log.Fields
+	LogLevel string
+}
+
+func (l logger) Write(p []byte) (n int, err error) {
+	if l.LogLevel == logLevelError {
+		log.WithFields(l.Fields).Error(string(p))
+
+		return len(p), nil
+	} else if l.LogLevel == logLevelInfo {
+		log.WithFields(l.Fields).Info(string(p))
+		return len(p), nil
+	}
+
+	return 0, errors.New("No such loglevel")
+}
+
+func testToken(r *http.Request) *MiddlewareError {
+	if !hasValidToken(r) {
+		return &MiddlewareError{
+			http.StatusForbidden,
+			"Forbidden",
+			log.Fields{
+				"job": r.Header.Get(hookJobHeaderName),
+			},
+			"Invalid token",
+		}
+	}
+
+	return nil
+}
+
 // HomeHandler Handles requests to the root path
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
 
-	if !hasValidToken(r) {
-		log.WithFields(log.Fields{
-			"job": r.Header.Get("X-HOOK-JOB"),
-		}).Error("Invalid token")
-		http.Error(w, "Forbidden", http.StatusForbidden)
+	if err := testToken(r); err != nil {
+		log.WithFields(err.LogFields).Error(err.LogFields)
+		http.Error(w, err.Text, err.Code)
 		return
 	}
+
+	jobName := r.Header.Get(hookJobHeaderName)
 
 	execConfigs, err := getExecConfigs(r)
 
 	if err != nil {
 		log.WithFields(log.Fields{
-			"job": r.Header.Get("X-HOOK-JOB"),
+			"job": jobName,
 		}).Error(err)
 
 		http.Error(w, "Unknown error", http.StatusInternalServerError)
@@ -245,7 +285,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 
 	if !hasConfigs(execConfigs) {
 		log.WithFields(log.Fields{
-			"job": r.Header.Get("X-HOOK-JOB"),
+			"job": jobName,
 		}).Error("Configuration not found")
 		http.NotFound(w, r)
 
@@ -260,47 +300,69 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.WithFields(log.Fields{
-		"job": r.Header.Get("X-HOOK-JOB"),
+		"job": jobName,
 	}).Info("Job start")
 
-	for _, execConf := range execConfigs {
-
-		jobEnd := make(chan int)
-
-		outputs, err := runJob(execConf, w, jobEnd)
-
-		if outputs == nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+	go func() {
+		errorLogger := logger{
+			Fields: log.Fields{
+				"step":  "runJob",
+				"job":   jobName,
+				"level": "Error",
+			},
+			LogLevel: logLevelInfo,
 		}
-
-		if err != nil {
-			log.WithFields(log.Fields{
-				"step": "runJob",
-				"job":  r.Header.Get("X-HOOK-JOB"),
-			}).Error(err)
-
-			http.Error(w, "Unkown error", http.StatusInternalServerError)
-
-			w.Write([]byte("\n"))
+		infoLogger := logger{
+			Fields: log.Fields{
+				"step":  "runJob",
+				"job":   jobName,
+				"level": "Info",
+			},
+			LogLevel: logLevelInfo,
 		}
+		for _, execConf := range execConfigs {
 
-		writeProcessOutput(outputs, w)
+			jobEnd := make(chan int)
 
-		exitCode := <-jobEnd
+			outputs, err := runJob(execConf, w, jobEnd)
 
-		if exitCode != 0 {
-			log.WithFields(log.Fields{
-				"job":      r.Header.Get("X-HOOK-JOB"),
-				"exitCode": exitCode,
-			}).Error(errors.New("Job aborted"))
-			break
+			if outputs == nil {
+				log.WithFields(log.Fields{
+					"step": "runJob",
+					"job":  jobName,
+				}).Error(err)
+				// http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			if err != nil {
+				log.WithFields(log.Fields{
+					"step": "runJob",
+					"job":  r.Header.Get(hookJobHeaderName),
+				}).Error(err)
+
+				// http.Error(w, "Unkown error", http.StatusInternalServerError)
+
+				// w.Write([]byte("\n"))
+			}
+
+			writeProcessOutput(outputs, infoLogger, errorLogger)
+
+			exitCode := <-jobEnd
+
+			if exitCode != 0 {
+				log.WithFields(log.Fields{
+					"job":      r.Header.Get(hookJobHeaderName),
+					"exitCode": exitCode,
+				}).Error(errors.New("Job aborted"))
+				break
+			}
 		}
-	}
+	}()
 
 	log.WithFields(log.Fields{
-		"job": r.Header.Get("X-HOOK-JOB"),
-	}).Info("Job finished")
+		"job": r.Header.Get(hookJobHeaderName),
+	}).Info("Job accepted")
 
 }
 
