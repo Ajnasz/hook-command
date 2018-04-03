@@ -6,19 +6,16 @@ import (
 	"io"
 )
 
-const logLevelError string = "error"
-const logLevelInfo string = "info"
-
 type logrusLogger struct {
 	Fields   log.Fields
-	LogLevel string
+	LogLevel log.Level
 }
 
 func (l logrusLogger) Write(p []byte) (n int, err error) {
-	if l.LogLevel == logLevelError {
+	if l.LogLevel == log.ErrorLevel {
 		log.WithFields(l.Fields).Error(string(p))
 		return len(p), nil
-	} else if l.LogLevel == logLevelInfo {
+	} else if l.LogLevel == log.InfoLevel {
 		log.WithFields(l.Fields).Info(string(p))
 		return len(p), nil
 	}

@@ -8,9 +8,10 @@ import (
 
 // RedisLogger logs things to redis
 type RedisLogger struct {
-	client *redis.Client
-	key    string
-	Fields log.Fields
+	client   *redis.Client
+	key      string
+	Fields   log.Fields
+	LogLevel log.Level
 }
 
 func (l RedisLogger) Write(b []byte) (n int, err error) {
@@ -22,6 +23,7 @@ func (l RedisLogger) Write(b []byte) (n int, err error) {
 	entry := log.WithFields(l.Fields)
 	entry.Message = string(b)
 	entry.Time = time.Now()
+	entry.Level = l.LogLevel
 
 	str, err := formatter.Format(entry)
 
@@ -63,10 +65,11 @@ func (l RedisLogger) Get(subGroup string) ([]string, error) {
 }
 
 // NewRedisLogger creates new redis logger
-func NewRedisLogger(client *redis.Client, key string, fields log.Fields) *RedisLogger {
+func NewRedisLogger(client *redis.Client, key string, fields log.Fields, logLevel log.Level) *RedisLogger {
 	return &RedisLogger{
 		client,
 		"redis_logs:" + key,
 		fields,
+		logLevel,
 	}
 }

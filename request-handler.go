@@ -31,34 +31,30 @@ func execJob(jobName, redisKey string, execConfigs []ExecConf) {
 		Loggers: []io.Writer{
 			logrusLogger{
 				Fields: log.Fields{
-					"step":  "runJob",
-					"job":   jobName,
-					"level": "Error",
+					"step": "runJob",
+					"job":  jobName,
 				},
-				LogLevel: logLevelError,
+				LogLevel: log.ErrorLevel,
 			},
 			NewRedisLogger(redisClient, redisKey+":error", log.Fields{
-				"step":  "runJob",
-				"job":   jobName,
-				"level": "Error",
-			}),
+				"step": "runJob",
+				"job":  jobName,
+			}, log.ErrorLevel),
 		},
 	}
 	infoLogger := logger{
 		Loggers: []io.Writer{
 			logrusLogger{
 				Fields: log.Fields{
-					"step":  "runJob",
-					"job":   jobName,
-					"level": "Info",
+					"step": "runJob",
+					"job":  jobName,
 				},
-				LogLevel: logLevelInfo,
+				LogLevel: log.InfoLevel,
 			},
 			NewRedisLogger(redisClient, redisKey+":info", log.Fields{
-				"step":  "runJob",
-				"job":   jobName,
-				"level": "Info",
-			}),
+				"step": "runJob",
+				"job":  jobName,
+			}, log.InfoLevel),
 		},
 	}
 	for _, execConf := range execConfigs {
@@ -147,14 +143,14 @@ func handleGetJob(w http.ResponseWriter, r *http.Request) {
 
 	jobID := pathSplit[1]
 
-	infos, err := NewRedisLogger(redisClient, jobID, log.Fields{}).Get("info")
+	infos, err := NewRedisLogger(redisClient, jobID, log.Fields{}, log.InfoLevel).Get("info")
 
 	if err != nil {
 		http.Error(w, "Unknown error", http.StatusInternalServerError)
 		return
 	}
 
-	errors, err := NewRedisLogger(redisClient, jobID, log.Fields{}).Get("error")
+	errors, err := NewRedisLogger(redisClient, jobID, log.Fields{}, log.ErrorLevel).Get("error")
 
 	if err != nil {
 		http.Error(w, "Unknown error", http.StatusInternalServerError)
