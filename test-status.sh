@@ -12,7 +12,11 @@ done;
 
 clear
 
-test "" != "$(curl -s -X GET -H "x-hook-token:${HOOK_TOKEN}" $HOST/job/$id | grep "level=Error")" && \
-	curl -s -X GET -H "x-hook-token:${HOOK_TOKEN}" $HOST/job/$id | grep "level=Error" && \
-	exit 1 || \
-	echo "Done $id"
+test "" != "$(curl -s -X GET -H "x-hook-token:${HOOK_TOKEN}" $HOST/job/$id | grep "level=Error")" && {
+		echo "Error detected $id"
+		curl -s -X GET -H "x-hook-token:${HOOK_TOKEN}" $HOST/job/$id | grep "level=Error"
+		exit 1
+	}
+
+echo "Done $id"
+exit 0

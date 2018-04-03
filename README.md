@@ -6,17 +6,28 @@ Copy configuration.example.json to configuration.json
 cp configuration.example.json configuration.json
 ```
 
-Run the server
+Start the server:
 
 ```
-HCMD_SCRIPTS_DIR=scripts HCMD_CONFIG_FILE=configuration.json HCMD_TOKEN='a screct TOKEN 1112$$&&% what Noone will know!' go run main.go
+$ HCMD_SCRIPTS_DIR=scripts HCMD_CONFIG_FILE=configuration.json HCMD_TOKEN='a screct TOKEN 1112$$&&% what Noone will know!' go run main.go
 ```
 
-And call the server:
+Start a job *example* on the server
 
 ```
-curl -H 'X-Hook-Token: a screct TOKEN 1112$$&&% what Noone will know!' -H 'X-Hook-Job: example' localhost:10292
+$ curl -H 'X-Hook-Token: a screct TOKEN 1112$$&&% what Noone will know!' -H 'X-Hook-Job: example' localhost:10292
+randomjobidreturned
 ```
+
+When a job started, a 16 char long job ID returned (`[a-z]{16}`), which can be used to retreive logs from the job:
+
+Poll for job status:
+
+```
+$ curl -H 'X-Hook-Token: a screct TOKEN 1112$$&&% what Noone will know!'  localhost:10292/job/asdffdsajklhhjkl
+```
+
+Last message will contain `EOL` string, so you can grep for it to see if job run finished.
 
 
 ## Configuration
