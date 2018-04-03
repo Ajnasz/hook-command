@@ -1,20 +1,98 @@
 package main
 
 import (
-	"errors"
-	log "github.com/Sirupsen/logrus"
+	"encoding/json"
+	"io"
+	"math/rand"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	log "github.com/Sirupsen/logrus"
 )
 
-// RequestHandler Handles requests to the root path
-func RequestHandler(w http.ResponseWriter, r *http.Request) {
+func randInt(min int, max int) int {
+	return min + rand.Intn(max-min)
+}
 
-	if err := testToken(r); err != nil {
-		log.WithFields(err.LogFields).Error(err.LogFields)
-		http.Error(w, err.Text, err.Code)
-		return
+func randomString(l int) string {
+	rand.Seed(time.Now().UTC().UnixNano())
+	bytes := make([]byte, l)
+
+	for i := 0; i < l; i++ {
+		bytes[i] = byte(randInt(97, 122))
 	}
 
+	return string(bytes)
+}
+
+func execJob(jobName, redisKey string, execConfigs []ExecConf) {
+	errorLogger := logger{
+		Loggers: []io.Writer{
+			logrusLogger{
+				Fields: log.Fields{
+					"step":  "runJob",
+					"job":   jobName,
+					"level": "Error",
+				},
+				LogLevel: logLevelError,
+			},
+			NewRedisLogger(redisClient, redisKey+":error", log.Fields{
+				"step":  "runJob",
+				"job":   jobName,
+				"level": "Error",
+			}),
+		},
+	}
+	infoLogger := logger{
+		Loggers: []io.Writer{
+			logrusLogger{
+				Fields: log.Fields{
+					"step":  "runJob",
+					"job":   jobName,
+					"level": "Info",
+				},
+				LogLevel: logLevelInfo,
+			},
+			NewRedisLogger(redisClient, redisKey+":info", log.Fields{
+				"step":  "runJob",
+				"job":   jobName,
+				"level": "Info",
+			}),
+		},
+	}
+	for _, execConf := range execConfigs {
+
+		jobEnd := make(chan int)
+
+		outputs, err := runJob(execConf, jobEnd)
+
+		if outputs == nil {
+			errorLogger.Write([]byte(err.Error()))
+			break
+		}
+
+		if err != nil {
+			errorLogger.Write([]byte(err.Error()))
+		}
+
+		writeProcessOutput(outputs, infoLogger, errorLogger)
+
+		exitCode := <-jobEnd
+
+		if exitCode != 0 {
+			errorLogger.Write([]byte("Job exited with code " + strconv.Itoa(exitCode)))
+			break
+		} else {
+			infoLogger.Write([]byte("Job exited with code " + strconv.Itoa(exitCode)))
+		}
+	}
+
+	infoLogger.Write([]byte("EOL"))
+}
+
+func handleNewJobRequest(w http.ResponseWriter, r *http.Request) {
 	jobName := r.Header.Get(hookJobHeaderName)
 
 	execConfigs, err := getExecConfigs(r)
@@ -49,65 +127,67 @@ func RequestHandler(w http.ResponseWriter, r *http.Request) {
 		"job": jobName,
 	}).Info("Job start")
 
-	go func() {
-		errorLogger := logger{
-			Fields: log.Fields{
-				"step":  "runJob",
-				"job":   jobName,
-				"level": "Error",
-			},
-			LogLevel: logLevelInfo,
-		}
-		infoLogger := logger{
-			Fields: log.Fields{
-				"step":  "runJob",
-				"job":   jobName,
-				"level": "Info",
-			},
-			LogLevel: logLevelInfo,
-		}
-		for _, execConf := range execConfigs {
+	redisKey := randomString(16)
+	w.Write([]byte(redisKey))
 
-			jobEnd := make(chan int)
-
-			outputs, err := runJob(execConf, w, jobEnd)
-
-			if outputs == nil {
-				log.WithFields(log.Fields{
-					"step": "runJob",
-					"job":  jobName,
-				}).Error(err)
-				// http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			if err != nil {
-				log.WithFields(log.Fields{
-					"step": "runJob",
-					"job":  r.Header.Get(hookJobHeaderName),
-				}).Error(err)
-
-				// http.Error(w, "Unkown error", http.StatusInternalServerError)
-
-				// w.Write([]byte("\n"))
-			}
-
-			writeProcessOutput(outputs, infoLogger, errorLogger)
-
-			exitCode := <-jobEnd
-
-			if exitCode != 0 {
-				log.WithFields(log.Fields{
-					"job":      r.Header.Get(hookJobHeaderName),
-					"exitCode": exitCode,
-				}).Error(errors.New("Job aborted"))
-				break
-			}
-		}
-	}()
+	go execJob(jobName, redisKey, execConfigs)
 
 	log.WithFields(log.Fields{
 		"job": r.Header.Get(hookJobHeaderName),
 	}).Info("Job accepted")
 
+}
+
+type jobResponse struct {
+	Info  []string `json:"info"`
+	Error []string `json:"error"`
+}
+
+func handleGetJob(w http.ResponseWriter, r *http.Request) {
+	pathSplit := strings.SplitAfter(r.URL.Path, "/job/")
+
+	jobID := pathSplit[1]
+
+	info, err := NewRedisLogger(redisClient, jobID, log.Fields{}).Get("info")
+
+	if err != nil {
+		http.Error(w, "Unknown error", http.StatusInternalServerError)
+		return
+	}
+
+	errors, err := NewRedisLogger(redisClient, jobID, log.Fields{}).Get("error")
+
+	if err != nil {
+		http.Error(w, "Unknown error", http.StatusInternalServerError)
+		return
+	}
+
+	jsonResponse, err := json.Marshal(jobResponse{
+		info,
+		errors,
+	})
+
+	if err != nil {
+		http.Error(w, "Unknown error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Write(jsonResponse)
+
+}
+
+// RequestHandler Handles requests to the root path
+func RequestHandler(w http.ResponseWriter, r *http.Request) {
+	if err := testToken(r); err != nil {
+		log.WithFields(err.LogFields).Error(err.LogFields)
+		http.Error(w, err.Text, err.Code)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/job/") {
+		handleGetJob(w, r)
+		return
+	}
+
+	handleNewJobRequest(w, r)
 }

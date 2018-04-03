@@ -2,21 +2,23 @@ package main
 
 import (
 	"bufio"
-	"syscall"
-	// "bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	log "github.com/Sirupsen/logrus"
-	"github.com/kelseyhightower/envconfig"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os/exec"
 	"path/filepath"
+	"syscall"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/go-redis/redis"
+	"github.com/kelseyhightower/envconfig"
 )
 
 var config Config
+var redisClient *redis.Client
 
 const hookTokenHeaderName string = "X-HOOK-TOKEN"
 const hookJobHeaderName string = "X-HOOK-JOB"
@@ -95,7 +97,7 @@ func getCmd(execConf ExecConf) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
-func runJob(execConf ExecConf, w http.ResponseWriter, finish chan int) (*ProcessOutput, error) {
+func runJob(execConf ExecConf, finish chan int) (*ProcessOutput, error) {
 	cmd, err := getCmd(execConf)
 
 	if err != nil {
@@ -146,7 +148,7 @@ func hasConfigs(execConfigs []ExecConf) bool {
 	return len(execConfigs) > 0
 }
 
-func writeProcessOutput(outputs *ProcessOutput, info io.Writer, err io.Writer) {
+func writeProcessOutput(outputs *ProcessOutput, info logger, err logger) {
 
 	outputChan := make(chan []byte)
 	errorChan := make(chan []byte)
@@ -207,6 +209,12 @@ func init() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	redisClient = redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "",
+		DB:       1,
+	})
 }
 
 func main() {
