@@ -1,16 +1,18 @@
 #!/bin/sh
 
-id=$(curl -s -X POST -d '{"env": {"VALAMI": "SOMETHING"}}' -H 'x-hook-token:aaa112345678' -H 'x-hook-job:example' localhost:10292);
+HOOK_TOKEN="aaa112345678"
+HOST=localhost:10292
+id=$(curl -s -X POST -d '{"env": {"VALAMI": "SOMETHING"}}' -H "x-hook-token:${HOOK_TOKEN}" -H 'x-hook-job:example' $HOST);
 while true; do
 	echo -n "."
-	test "" != "$(curl -s -X GET -H 'x-hook-token:aaa112345678' -H 'x-hook-job:example' localhost:10292/job/$id | jq -r '.info[-1]' | grep msg=EOL)" && \
+	test "" != "$(curl -s -X GET -H "x-hook-token:${HOOK_TOKEN}" $HOST/job/$id | grep msg=EOL)" && \
 		break;
 	sleep 1;
 done;
 
 clear
 
-test "" != "$(curl -s -X GET -H 'x-hook-token:aaa112345678' -H 'x-hook-job:example' localhost:10292/job/$id | jq -r '.error[-1]')" && \
-	curl -s -X GET -H 'x-hook-token:aaa112345678' -H 'x-hook-job:example' localhost:10292/job/$id | jq -r '.error[]' && \
+test "" != "$(curl -s -X GET -H "x-hook-token:${HOOK_TOKEN}" $HOST/job/$id | grep "level=Error")" && \
+	curl -s -X GET -H "x-hook-token:${HOOK_TOKEN}" $HOST/job/$id | grep "level=Error" && \
 	exit 1 || \
 	echo "Done $id"

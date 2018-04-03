@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"io"
 	"math/rand"
 	"net/http"
@@ -148,7 +147,7 @@ func handleGetJob(w http.ResponseWriter, r *http.Request) {
 
 	jobID := pathSplit[1]
 
-	info, err := NewRedisLogger(redisClient, jobID, log.Fields{}).Get("info")
+	infos, err := NewRedisLogger(redisClient, jobID, log.Fields{}).Get("info")
 
 	if err != nil {
 		http.Error(w, "Unknown error", http.StatusInternalServerError)
@@ -162,18 +161,13 @@ func handleGetJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jsonResponse, err := json.Marshal(jobResponse{
-		info,
-		errors,
-	})
-
-	if err != nil {
-		http.Error(w, "Unknown error", http.StatusInternalServerError)
-		return
+	for _, line := range infos {
+		w.Write([]byte(line))
 	}
 
-	w.Write(jsonResponse)
-
+	for _, line := range errors {
+		w.Write([]byte(line))
+	}
 }
 
 // RequestHandler Handles requests to the root path
