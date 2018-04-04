@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	log "github.com/Sirupsen/logrus"
 	"io"
 )
@@ -9,18 +8,22 @@ import (
 type logrusLogger struct {
 	Fields   log.Fields
 	LogLevel log.Level
+	Logger   *log.Logger
 }
 
 func (l logrusLogger) Write(p []byte) (n int, err error) {
-	if l.LogLevel == log.ErrorLevel {
-		log.WithFields(l.Fields).Error(string(p))
-		return len(p), nil
-	} else if l.LogLevel == log.InfoLevel {
-		log.WithFields(l.Fields).Info(string(p))
-		return len(p), nil
-	}
+	entry := l.Logger.WithFields(l.Fields)
 
-	return 0, errors.New("No such loglevel")
+	switch l.LogLevel {
+	case log.ErrorLevel:
+		entry.Error(string(p))
+		return len(p), nil
+	case log.InfoLevel:
+		entry.Info(string(p))
+		return len(p), nil
+	default:
+		return 0, nil
+	}
 }
 
 type logger struct {

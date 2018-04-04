@@ -2,7 +2,7 @@
 
 echo "Exmaple run"
 sleep 1
-echo "Exmaple run 2" >&2
+echo "Exmaple run 1 to error" >&2
 
 sleep 1
 echo "EXAMPLE: $EXAMPLE"

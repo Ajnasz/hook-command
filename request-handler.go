@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	aaa "github.com/Ajnasz/hook-command/pkg"
 	log "github.com/Sirupsen/logrus"
 )
 
@@ -27,6 +28,13 @@ func randomString(l int) string {
 }
 
 func execJob(jobName, redisKey string, execConfigs []ExecConf) {
+	stdLogger := log.New()
+	redisErrorLogger := log.New()
+	redisErrorLogger.Out = NewRedisLogger(redisClient, redisKey+":error", log.ErrorLevel)
+
+	redisInfoLogger := log.New()
+	redisInfoLogger.Out = NewRedisLogger(redisClient, redisKey+":info", log.ErrorLevel)
+
 	errorLogger := logger{
 		Loggers: []io.Writer{
 			logrusLogger{
@@ -35,11 +43,16 @@ func execJob(jobName, redisKey string, execConfigs []ExecConf) {
 					"job":  jobName,
 				},
 				LogLevel: log.ErrorLevel,
+				Logger:   stdLogger,
 			},
-			NewRedisLogger(redisClient, redisKey+":error", log.Fields{
-				"step": "runJob",
-				"job":  jobName,
-			}, log.ErrorLevel),
+			logrusLogger{
+				Fields: log.Fields{
+					"step": "runJob",
+					"job":  jobName,
+				},
+				LogLevel: log.ErrorLevel,
+				Logger:   redisErrorLogger,
+			},
 		},
 	}
 	infoLogger := logger{
@@ -50,11 +63,16 @@ func execJob(jobName, redisKey string, execConfigs []ExecConf) {
 					"job":  jobName,
 				},
 				LogLevel: log.InfoLevel,
+				Logger:   stdLogger,
 			},
-			NewRedisLogger(redisClient, redisKey+":info", log.Fields{
-				"step": "runJob",
-				"job":  jobName,
-			}, log.InfoLevel),
+			logrusLogger{
+				Fields: log.Fields{
+					"step": "runJob",
+					"job":  jobName,
+				},
+				LogLevel: log.InfoLevel,
+				Logger:   redisInfoLogger,
+			},
 		},
 	}
 	for _, execConf := range execConfigs {
@@ -143,27 +161,10 @@ func handleGetJob(w http.ResponseWriter, r *http.Request) {
 
 	jobID := pathSplit[1]
 
-	infos, err := NewRedisLogger(redisClient, jobID, log.Fields{}, log.InfoLevel).Get("info")
-
-	if err != nil {
-		http.Error(w, "Unknown error", http.StatusInternalServerError)
-		return
-	}
-
-	errors, err := NewRedisLogger(redisClient, jobID, log.Fields{}, log.ErrorLevel).Get("error")
-
-	if err != nil {
-		http.Error(w, "Unknown error", http.StatusInternalServerError)
-		return
-	}
-
-	for _, line := range infos {
-		w.Write([]byte(line))
-	}
-
-	for _, line := range errors {
-		w.Write([]byte(line))
-	}
+	infos := aaa.NewRedisRangeReader(redisClient, "redis_logs:"+jobID+":info")
+	errors := aaa.NewRedisRangeReader(redisClient, "redis_logs:"+jobID+":error")
+	io.Copy(w, infos)
+	io.Copy(w, errors)
 }
 
 // RequestHandler Handles requests to the root path
