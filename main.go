@@ -211,9 +211,9 @@ func init() {
 	}
 
 	redisClient = redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "",
-		DB:       1,
+		Addr:     config.RedisAddr,
+		Password: config.RedisPassword,
+		DB:       config.RedisDB,
 	})
 }
 

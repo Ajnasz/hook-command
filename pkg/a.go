@@ -7,15 +7,15 @@ import (
 
 // RedisRangeReader reads lrange from redis
 type RedisRangeReader struct {
-	Client      *redis.Client
-	Key         string
+	client      *redis.Client
+	key         string
 	rangeCursor int64
 	len         int64
 }
 
 func (r RedisRangeReader) Read(p []byte) (n int, err error) {
 	if r.len == 0 {
-		maxLen, err := r.Client.LLen(r.Key).Result()
+		maxLen, err := r.client.LLen(r.key).Result()
 
 		if err != nil {
 			return 0, err
@@ -33,7 +33,7 @@ func (r RedisRangeReader) Read(p []byte) (n int, err error) {
 	}
 
 	for r.rangeCursor < r.len {
-		values, err := r.Client.LRange(r.Key, r.rangeCursor, r.rangeCursor).Result()
+		values, err := r.client.LRange(r.key, r.rangeCursor, r.rangeCursor).Result()
 
 		if err != nil {
 			return 0, err
@@ -65,7 +65,7 @@ func (r RedisRangeReader) Read(p []byte) (n int, err error) {
 // NewRedisRangeReader creates RedisRangeReader instance
 func NewRedisRangeReader(client *redis.Client, key string) RedisRangeReader {
 	return RedisRangeReader{
-		Client: client,
-		Key:    key,
+		client: client,
+		key:    key,
 	}
 }

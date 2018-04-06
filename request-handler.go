@@ -30,25 +30,23 @@ func randomString(l int) string {
 func execJob(jobName, redisKey string, execConfigs []ExecConf) {
 	stdLogger := log.New()
 	redisErrorLogger := log.New()
-	redisErrorLogger.Out = NewRedisLogger(redisClient, redisKey+":error", log.ErrorLevel)
+	redisErrorLogger.Out = NewRedisLogger(redisClient, "redis_logs:"+redisKey+":error", log.ErrorLevel)
 
 	redisInfoLogger := log.New()
-	redisInfoLogger.Out = NewRedisLogger(redisClient, redisKey+":info", log.ErrorLevel)
+	redisInfoLogger.Out = NewRedisLogger(redisClient, "redis_logs:"+redisKey+":info", log.ErrorLevel)
 
 	errorLogger := logger{
 		Loggers: []io.Writer{
 			logrusLogger{
 				Fields: log.Fields{
-					"step": "runJob",
-					"job":  jobName,
+					"job": jobName,
 				},
 				LogLevel: log.ErrorLevel,
 				Logger:   stdLogger,
 			},
 			logrusLogger{
 				Fields: log.Fields{
-					"step": "runJob",
-					"job":  jobName,
+					"job": jobName,
 				},
 				LogLevel: log.ErrorLevel,
 				Logger:   redisErrorLogger,
@@ -59,16 +57,14 @@ func execJob(jobName, redisKey string, execConfigs []ExecConf) {
 		Loggers: []io.Writer{
 			logrusLogger{
 				Fields: log.Fields{
-					"step": "runJob",
-					"job":  jobName,
+					"job": jobName,
 				},
 				LogLevel: log.InfoLevel,
 				Logger:   stdLogger,
 			},
 			logrusLogger{
 				Fields: log.Fields{
-					"step": "runJob",
-					"job":  jobName,
+					"job": jobName,
 				},
 				LogLevel: log.InfoLevel,
 				Logger:   redisInfoLogger,
