@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	logrusredis "github.com/Ajnasz/hook-command/logrus_redis"
 	aaa "github.com/Ajnasz/hook-command/pkg"
+	"github.com/Ajnasz/logrus-redis"
 	log "github.com/Sirupsen/logrus"
 )
 
