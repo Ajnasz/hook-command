@@ -33,7 +33,7 @@ func (r RedisRangeReader) Read(p []byte) (n int, err error) {
 	}
 
 	for r.rangeCursor < r.len {
-		values, err := r.client.LRange(r.key, r.rangeCursor, r.rangeCursor).Result()
+		values, err := r.client.LRange(r.key, r.rangeCursor, r.rangeCursor+10).Result()
 
 		if err != nil {
 			return 0, err
@@ -50,9 +50,9 @@ func (r RedisRangeReader) Read(p []byte) (n int, err error) {
 				p[n] = v
 				n++
 			}
-		}
 
-		r.rangeCursor++
+			r.rangeCursor++
+		}
 
 		if r.len <= r.rangeCursor {
 			return n, io.EOF

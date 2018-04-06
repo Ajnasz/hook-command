@@ -8,9 +8,12 @@ import (
 	"strings"
 	"time"
 
+	logrusredis "github.com/Ajnasz/hook-command/logrus_redis"
 	aaa "github.com/Ajnasz/hook-command/pkg"
 	log "github.com/Sirupsen/logrus"
 )
+
+const redisKeyPrefix string = "redis_logs:"
 
 func randInt(min int, max int) int {
 	return min + rand.Intn(max-min)
@@ -29,11 +32,9 @@ func randomString(l int) string {
 
 func execJob(jobName, redisKey string, execConfigs []ExecConf) {
 	stdLogger := log.New()
-	redisErrorLogger := log.New()
-	redisErrorLogger.Out = NewRedisLogger(redisClient, "redis_logs:"+redisKey+":error", log.ErrorLevel)
+	hook := logrusredis.NewLogrusRedis(redisClient, redisKeyPrefix+redisKey)
 
-	redisInfoLogger := log.New()
-	redisInfoLogger.Out = NewRedisLogger(redisClient, "redis_logs:"+redisKey+":info", log.ErrorLevel)
+	stdLogger.Hooks.Add(hook)
 
 	errorLogger := logger{
 		Loggers: []io.Writer{
@@ -43,13 +44,6 @@ func execJob(jobName, redisKey string, execConfigs []ExecConf) {
 				},
 				LogLevel: log.ErrorLevel,
 				Logger:   stdLogger,
-			},
-			logrusLogger{
-				Fields: log.Fields{
-					"job": jobName,
-				},
-				LogLevel: log.ErrorLevel,
-				Logger:   redisErrorLogger,
 			},
 		},
 	}
@@ -61,13 +55,6 @@ func execJob(jobName, redisKey string, execConfigs []ExecConf) {
 				},
 				LogLevel: log.InfoLevel,
 				Logger:   stdLogger,
-			},
-			logrusLogger{
-				Fields: log.Fields{
-					"job": jobName,
-				},
-				LogLevel: log.InfoLevel,
-				Logger:   redisInfoLogger,
 			},
 		},
 	}
@@ -157,10 +144,8 @@ func handleGetJob(w http.ResponseWriter, r *http.Request) {
 
 	jobID := pathSplit[1]
 
-	infos := aaa.NewRedisRangeReader(redisClient, "redis_logs:"+jobID+":info")
-	errors := aaa.NewRedisRangeReader(redisClient, "redis_logs:"+jobID+":error")
+	infos := aaa.NewRedisRangeReader(redisClient, redisKeyPrefix+jobID)
 	io.Copy(w, infos)
-	io.Copy(w, errors)
 }
 
 // RequestHandler Handles requests to the root path
