@@ -139,10 +139,21 @@ type jobResponse struct {
 	Error []string `json:"error"`
 }
 
+func hasJob(jobID string) bool {
+	keys, err := redisClient.Keys(redisKeyPrefix + jobID).Result()
+
+	return err == nil && len(keys) == 1
+}
+
 func handleGetJob(w http.ResponseWriter, r *http.Request) {
 	pathSplit := strings.SplitAfter(r.URL.Path, "/job/")
 
 	jobID := pathSplit[1]
+
+	if !hasJob(jobID) {
+		http.NotFound(w, r)
+		return
+	}
 
 	infos := redisrangereader.NewRedisRangeReader(redisClient, redisKeyPrefix+jobID)
 	io.Copy(w, infos)
