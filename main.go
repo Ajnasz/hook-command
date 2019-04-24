@@ -148,7 +148,9 @@ func hasConfigs(execConfigs []ExecConf) bool {
 	return len(execConfigs) > 0
 }
 
-func writeProcessOutput(outputs *ProcessOutput, info logger, err logger) {
+func writeProcessOutput(outputs *ProcessOutput, loggers execLoggers) {
+	info := loggers.Info
+	err := loggers.Error
 
 	outputChan := make(chan []byte)
 	errorChan := make(chan []byte)

@@ -4,12 +4,10 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Ajnasz/hook-command/redisrangereader"
-	"github.com/Ajnasz/logrus-redis"
 	log "github.com/Sirupsen/logrus"
 )
 
@@ -28,64 +26,6 @@ func randomString(l int) string {
 	}
 
 	return string(bytes)
-}
-
-func execJob(jobName, redisKey string, execConfigs []ExecConf) {
-	stdLogger := log.New()
-	hook := logrusredis.NewLogrusRedis(redisClient, redisKeyPrefix+redisKey)
-
-	stdLogger.Hooks.Add(hook)
-
-	errorLogger := logger{
-		Loggers: []io.Writer{
-			logrusLogger{
-				Fields: log.Fields{
-					"job": jobName,
-				},
-				LogLevel: log.ErrorLevel,
-				Logger:   stdLogger,
-			},
-		},
-	}
-	infoLogger := logger{
-		Loggers: []io.Writer{
-			logrusLogger{
-				Fields: log.Fields{
-					"job": jobName,
-				},
-				LogLevel: log.InfoLevel,
-				Logger:   stdLogger,
-			},
-		},
-	}
-	for _, execConf := range execConfigs {
-
-		jobEnd := make(chan int)
-
-		outputs, err := runJob(execConf, jobEnd)
-
-		if outputs == nil {
-			errorLogger.Write([]byte(err.Error()))
-			break
-		}
-
-		if err != nil {
-			errorLogger.Write([]byte(err.Error()))
-		}
-
-		writeProcessOutput(outputs, infoLogger, errorLogger)
-
-		exitCode := <-jobEnd
-
-		if exitCode != 0 {
-			errorLogger.Write([]byte("Job exited with code " + strconv.Itoa(exitCode)))
-			break
-		} else {
-			infoLogger.Write([]byte("Job exited with code " + strconv.Itoa(exitCode)))
-		}
-	}
-
-	infoLogger.Write([]byte("EOL"))
 }
 
 func handleNewJobRequest(w http.ResponseWriter, r *http.Request) {
