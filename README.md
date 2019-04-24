@@ -1,4 +1,7 @@
-# A Web server which accepts requests to run any predifined command
+# Deployment server
+
+A Web server which accepts requests to run any predifined command.
+Good to deploy code on a machine triggered by a webhook request. Stop and start service, copy binary, install dependencies, etc.
 
 Copy configuration.example.json to configuration.json
 
