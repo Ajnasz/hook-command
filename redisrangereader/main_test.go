@@ -1,4 +1,4 @@
-package aaa
+package redisrangereader
 
 import (
 	"github.com/go-redis/redis"

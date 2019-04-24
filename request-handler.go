@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	aaa "github.com/Ajnasz/hook-command/pkg"
+	"github.com/Ajnasz/hook-command/redisrangereader"
 	"github.com/Ajnasz/logrus-redis"
 	log "github.com/Sirupsen/logrus"
 )
@@ -144,7 +144,7 @@ func handleGetJob(w http.ResponseWriter, r *http.Request) {
 
 	jobID := pathSplit[1]
 
-	infos := aaa.NewRedisRangeReader(redisClient, redisKeyPrefix+jobID)
+	infos := redisrangereader.NewRedisRangeReader(redisClient, redisKeyPrefix+jobID)
 	io.Copy(w, infos)
 }
 
