@@ -28,6 +28,8 @@ func execJob(jobName, redisKey string, execConfigs []ExecConf) {
 
 		if err != nil {
 			loggers.Error.Write([]byte(err.Error()))
+			loggers.Error.Write([]byte("Job exection failed"))
+			return
 		}
 
 		writeProcessOutput(outputs, loggers)
