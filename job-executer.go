@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/Ajnasz/logrus-redis"
@@ -14,8 +15,10 @@ func execJob(jobName, redisKey string, execConfigs []ExecConf) {
 	stdLogger.Hooks.Add(hook)
 
 	loggers := getExecLoggers(jobName, stdLogger)
+	loggers.Info.Write([]byte("execute job package"))
 
 	for _, execConf := range execConfigs {
+		loggers.Info.Write([]byte(fmt.Sprintf("execute job %s", execConf.Command)))
 
 		jobEnd := make(chan int)
 
@@ -42,7 +45,10 @@ func execJob(jobName, redisKey string, execConfigs []ExecConf) {
 		} else {
 			loggers.Info.Write([]byte("Job exited with code " + strconv.Itoa(exitCode)))
 		}
+
+		loggers.Info.Write([]byte(fmt.Sprintf("execute job finished %s", execConf.Command)))
 	}
 
+	loggers.Info.Write([]byte("execute job package finished"))
 	loggers.Info.Write([]byte("EOL"))
 }

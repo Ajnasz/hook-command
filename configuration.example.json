@@ -4,11 +4,5 @@
 		"command": "example.sh",
 		"dir": "example",
 		"env": ["EXAMPLE=FOO BAR BAZ"]
-	},
-	{
-		"job": "example",
-		"command": "example2.sh",
-		"dir": "example",
-		"env": ["EXAMPLE=FOO BAR BAZ"]
 	}
 ]

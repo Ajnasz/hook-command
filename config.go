@@ -4,6 +4,7 @@ package main
 type Config struct {
 	Port          int    `default:"10292"`
 	ConfigFile    string `required:"true"`
+	ConfigDir     string `required:"true"`
 	ScriptsDir    string `required:"true"`
 	Token         string `required:"true"`
 	RedisAddr     string `default:"localhost:6379"`

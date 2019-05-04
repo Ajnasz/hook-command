@@ -2,12 +2,12 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"net"
 	"net/http"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
@@ -15,6 +15,9 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/go-redis/redis"
 	"github.com/kelseyhightower/envconfig"
+
+	"github.com/coreos/go-systemd/activation"
+	"github.com/coreos/go-systemd/daemon"
 )
 
 var config Config
@@ -37,26 +40,29 @@ func getExecConfigs(r *http.Request) ([]ExecConf, error) {
 		return nil, nil
 	}
 
-	configFilePath, err := filepath.Abs(config.ConfigFile)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"configFilePath": configFilePath,
-		}).Error(err)
-		return nil, err
-	}
-
-	file, err := ioutil.ReadFile(configFilePath)
-
-	if err != nil {
-		log.WithFields(log.Fields{
-			"configFilePath": configFilePath,
-		}).Error(err)
-		return nil, err
-	}
-
 	var execConfigs []ExecConf
 
-	json.Unmarshal(file, &execConfigs)
+	if _, err := os.Stat(config.ConfigFile); !os.IsNotExist(err) {
+		fileExecConfigs, err := readExecConfFile(config.ConfigFile)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"configFilePath": config.ConfigFile,
+			}).Error(err)
+		}
+
+		execConfigs = append(execConfigs, fileExecConfigs...)
+	}
+
+	if info, _ := os.Stat(config.ConfigDir); info.IsDir() {
+		dirConfigs, err := readExecConfDir(config.ConfigDir)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"configDirPath": config.ConfigDir,
+			}).Error(err)
+		}
+
+		execConfigs = append(execConfigs, dirConfigs...)
+	}
 
 	var output []ExecConf
 
@@ -220,8 +226,27 @@ func init() {
 }
 
 func main() {
+	listeners, err := activation.Listeners()
+	if err != nil {
+		log.Panic(err)
+	}
+
+	var l net.Listener
+
+	if len(listeners) == 0 {
+		l, err = net.Listen("tcp", fmt.Sprintf(":%d", config.Port))
+		if err != nil {
+			log.Panic(err)
+		}
+	} else if len(listeners) != 1 {
+		panic("Unexpected number of socket activation fds")
+	} else {
+		l = listeners[0]
+	}
+
 	http.HandleFunc("/", RequestHandler)
 
-	log.Info(fmt.Sprintf("Listening on port %d", config.Port))
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", config.Port), nil))
+	daemon.SdNotify(false, "READY=1")
+	log.Info(fmt.Sprintf("Listening on port %s", l.Addr()))
+	http.Serve(l, nil)
 }

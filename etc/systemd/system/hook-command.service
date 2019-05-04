@@ -16,6 +16,7 @@ MemoryDenyWriteExecute=yes
 RestrictRealtime=yes
 Environment=PATH=/usr/local/bin/:/usr/bin:/usr/local/bin
 Environment=HCMD_CONFIGFILE=/etc/hook-command.json
+Environment=HCMD_CONFIGDIR=/etc/hook-command.d
 Environment=HCMD_SCRIPTSDIR=/usr/local/share/hook-command
 # Environment=HCMD_TOKEN=CHANGE ME
 
