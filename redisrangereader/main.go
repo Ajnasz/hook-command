@@ -1,19 +1,25 @@
 package redisrangereader
 
 import (
-	"github.com/go-redis/redis"
+	"errors"
 	"io"
+
+	"github.com/go-redis/redis"
 )
 
 // RedisRangeReader reads lrange from redis
 type RedisRangeReader struct {
-	client      *redis.Client
-	key         string
-	rangeCursor int64
-	len         int64
+	client       *redis.Client
+	key          string
+	rangeCursor  int64
+	LinesPerRead int64
+	len          int64
 }
 
-func (r RedisRangeReader) Read(p []byte) (n int, err error) {
+func (r *RedisRangeReader) Read(p []byte) (n int, err error) {
+	if r.LinesPerRead < 1 {
+		return 0, errors.New("LinesPerRead must be greater then 0")
+	}
 	if r.len == 0 {
 		maxLen, err := r.client.LLen(r.key).Result()
 
@@ -32,8 +38,10 @@ func (r RedisRangeReader) Read(p []byte) (n int, err error) {
 		return n, io.EOF
 	}
 
+	pCap := cap(p)
+
 	for r.rangeCursor < r.len {
-		values, err := r.client.LRange(r.key, r.rangeCursor, r.rangeCursor+10).Result()
+		values, err := r.client.LRange(r.key, r.rangeCursor, r.rangeCursor+r.LinesPerRead).Result()
 
 		if err != nil {
 			return 0, err
@@ -42,7 +50,7 @@ func (r RedisRangeReader) Read(p []byte) (n int, err error) {
 		for _, value := range values {
 			byteValue := []byte(value)
 
-			if len(byteValue) > cap(p) {
+			if n+len(byteValue) >= pCap {
 				return n, err
 			}
 
@@ -50,7 +58,6 @@ func (r RedisRangeReader) Read(p []byte) (n int, err error) {
 				p[n] = v
 				n++
 			}
-
 			r.rangeCursor++
 		}
 
@@ -63,9 +70,10 @@ func (r RedisRangeReader) Read(p []byte) (n int, err error) {
 }
 
 // NewRedisRangeReader creates RedisRangeReader instance
-func NewRedisRangeReader(client *redis.Client, key string) RedisRangeReader {
-	return RedisRangeReader{
-		client: client,
-		key:    key,
+func NewRedisRangeReader(client *redis.Client, key string) *RedisRangeReader {
+	return &RedisRangeReader{
+		client:       client,
+		key:          key,
+		LinesPerRead: 100,
 	}
 }
