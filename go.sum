@@ -1,5 +1,7 @@
 github.com/Ajnasz/logrus-redis v0.0.0-20180406191141-0cf75d7e4a80 h1:sW0aQNdDL5bugv5O9/7Z4eP0+s3OdRMeplCN+SDm16k=
 github.com/Ajnasz/logrus-redis v0.0.0-20180406191141-0cf75d7e4a80/go.mod h1:xn55KiLuS95NRu8ukT+ZA6miblrqIQCQ6Ap5H+rbGiE=
+github.com/Ajnasz/logrus-redis v1.0.0 h1:HcyD8f1FUslFXkDB6KradtjwXyrIL79/vZlGsxG/6TU=
+github.com/Ajnasz/logrus-redis v1.0.0/go.mod h1:xn55KiLuS95NRu8ukT+ZA6miblrqIQCQ6Ap5H+rbGiE=
 github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e h1:Wf6HqHfScWJN9/ZjdUKyjop4mf3Qdd+1TvvltAvM3m8=
 github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e/go.mod h1:F5haX7vjVVG0kc13fIWeqUViNPyEJxv/OmvnBo0Yme4=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
