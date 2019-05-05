@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"syscall"
 
@@ -246,7 +247,25 @@ func main() {
 
 	http.HandleFunc("/", RequestHandler)
 
+	done := make(chan error)
+	osSignals := make(chan os.Signal, 1)
+	signal.Notify(osSignals, os.Interrupt)
+
+	go func() {
+		done <- http.Serve(l, nil)
+	}()
+
 	daemon.SdNotify(false, "READY=1")
 	log.Info(fmt.Sprintf("Listening on port %s", l.Addr()))
-	http.Serve(l, nil)
+
+	select {
+	case err := <-done:
+		if err != nil {
+			log.Fatal(err)
+		}
+	case <-osSignals:
+		log.Info("Stop server")
+		daemon.SdNotify(false, "STOPPING=1")
+		l.Close()
+	}
 }
