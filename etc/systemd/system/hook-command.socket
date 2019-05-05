@@ -1,0 +1,8 @@
+[Unit]
+Description=Hook Command socket activation
+
+[Socket]
+ListenStream=10292
+
+[Install]
+WantedBy=sockets.target
