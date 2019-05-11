@@ -1,17 +1,17 @@
-package main
+package logger
 
 import (
 	log "github.com/Sirupsen/logrus"
 	"io"
 )
 
-type logrusLogger struct {
+type LogrusLogger struct {
 	Fields   log.Fields
 	LogLevel log.Level
 	Logger   *log.Logger
 }
 
-func (l logrusLogger) Write(p []byte) (n int, err error) {
+func (l LogrusLogger) Write(p []byte) (n int, err error) {
 	entry := l.Logger.WithFields(l.Fields)
 
 	switch l.LogLevel {
@@ -26,11 +26,11 @@ func (l logrusLogger) Write(p []byte) (n int, err error) {
 	}
 }
 
-type logger struct {
+type Logger struct {
 	Loggers []io.Writer
 }
 
-func (l logger) Write(p []byte) (n int, err error) {
+func (l Logger) Write(p []byte) (n int, err error) {
 	for _, l := range l.Loggers {
 		_, err := l.Write(p)
 

@@ -3,18 +3,19 @@ package main
 import (
 	"io"
 
+	"github.com/Ajnasz/hook-command/logger"
 	log "github.com/Sirupsen/logrus"
 )
 
 type execLoggers struct {
-	Info  logger
-	Error logger
+	Info  logger.Logger
+	Error logger.Logger
 }
 
 func getExecLoggers(jobName string, stdLogger *log.Logger) execLoggers {
-	errorLogger := logger{
+	errorLogger := logger.Logger{
 		Loggers: []io.Writer{
-			logrusLogger{
+			logger.LogrusLogger{
 				Fields: log.Fields{
 					"job": jobName,
 				},
@@ -24,9 +25,9 @@ func getExecLoggers(jobName string, stdLogger *log.Logger) execLoggers {
 		},
 	}
 
-	infoLogger := logger{
+	infoLogger := logger.Logger{
 		Loggers: []io.Writer{
-			logrusLogger{
+			logger.LogrusLogger{
 				Fields: log.Fields{
 					"job": jobName,
 				},
