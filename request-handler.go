@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Ajnasz/hook-command/execjob"
 	"github.com/Ajnasz/hook-command/redisrangereader"
 	log "github.com/Sirupsen/logrus"
 )
@@ -27,13 +28,6 @@ func randomString(l int) string {
 	}
 
 	return string(bytes)
-}
-
-// Job a struct to represent a job in json
-type Job struct {
-	JobName     string     `json:"jobName"`
-	RedisKey    string     `json:"redisKey"`
-	ExecConfigs []ExecConf `json:"execConfigs"`
 }
 
 func handleNewJobRequest(w http.ResponseWriter, r *http.Request) {
@@ -74,7 +68,11 @@ func handleNewJobRequest(w http.ResponseWriter, r *http.Request) {
 	redisKey := randomString(16)
 	w.Write([]byte(redisKey))
 
-	msg, err := json.Marshal(Job{jobName, redisKey, execConfigs})
+	msg, err := json.Marshal(execjob.Job{
+		JobName:     jobName,
+		RedisKey:    redisKey,
+		ExecConfigs: execConfigs,
+	})
 
 	if err != nil {
 		http.Error(w, "InternalServerError", http.StatusInternalServerError)

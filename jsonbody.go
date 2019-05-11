@@ -3,8 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	log "github.com/Sirupsen/logrus"
 	"net/http"
+
+	"github.com/Ajnasz/hook-command/execconf"
+	log "github.com/Sirupsen/logrus"
 )
 
 // JSONBody defines the json format of request body
@@ -29,7 +31,7 @@ func getJSONBody(r *http.Request) (*JSONBody, error) {
 	return &output, nil
 }
 
-func extendExecConfig(execConfig ExecConf, jsonBody *JSONBody) ExecConf {
+func extendExecConfig(execConfig execconf.ExecConf, jsonBody *JSONBody) execconf.ExecConf {
 	for name, value := range jsonBody.Env {
 		execConfig.Env = append(execConfig.Env, fmt.Sprintf("%s=%s", name, value))
 	}

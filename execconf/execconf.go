@@ -1,4 +1,4 @@
-package main
+package execconf
 
 import (
 	"encoding/json"
@@ -16,7 +16,8 @@ type ExecConf struct {
 	Dir     string   `json:"dir"`
 }
 
-func readExecConfFile(filename string) ([]ExecConf, error) {
+// ReadExecConfFile Reads configuration json file and converts to ExecConf
+func ReadExecConfFile(filename string) ([]ExecConf, error) {
 	configFilePath, err := filepath.Abs(filename)
 	if err != nil {
 		return nil, err
@@ -35,7 +36,7 @@ func readExecConfFile(filename string) ([]ExecConf, error) {
 	return execConfigs, nil
 }
 
-func readExecConfDir(directory string) ([]ExecConf, error) {
+func ReadExecConfDir(directory string) ([]ExecConf, error) {
 	configDirPath, err := filepath.Abs(directory)
 	if err != nil {
 		return nil, err
@@ -51,7 +52,7 @@ func readExecConfDir(directory string) ([]ExecConf, error) {
 			return nil
 		}
 
-		fileConfigs, err := readExecConfFile(path)
+		fileConfigs, err := ReadExecConfFile(path)
 
 		if err != nil {
 			return err

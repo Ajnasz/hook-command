@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/Ajnasz/hook-command/execconf"
 	"github.com/Ajnasz/logrus-redis"
 	log "github.com/Sirupsen/logrus"
 )
 
-func execJob(jobName, redisKey string, execConfigs []ExecConf) {
+func execJob(jobName, redisKey string, execConfigs []execconf.ExecConf) {
 	stdLogger := log.New()
 	hook := logrusredis.NewLogrusRedis(redisClient, redisKeyPrefix+redisKey)
 

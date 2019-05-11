@@ -14,12 +14,13 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/Ajnasz/hook-command/execconf"
+	"github.com/Ajnasz/hook-command/execjob"
 	log "github.com/Sirupsen/logrus"
-	"github.com/go-redis/redis"
-	"github.com/kelseyhightower/envconfig"
-
 	"github.com/coreos/go-systemd/activation"
 	"github.com/coreos/go-systemd/daemon"
+	"github.com/go-redis/redis"
+	"github.com/kelseyhightower/envconfig"
 )
 
 var config Config
@@ -36,17 +37,17 @@ func hasValidToken(r *http.Request) bool {
 	return r.Header.Get(hookTokenHeaderName) == config.Token
 }
 
-func getExecConfigs(r *http.Request) ([]ExecConf, error) {
+func getExecConfigs(r *http.Request) ([]execconf.ExecConf, error) {
 	job := r.Header.Get(hookJobHeaderName)
 
 	if job == "" {
 		return nil, nil
 	}
 
-	var execConfigs []ExecConf
+	var execConfigs []execconf.ExecConf
 
 	if _, err := os.Stat(config.ConfigFile); !os.IsNotExist(err) {
-		fileExecConfigs, err := readExecConfFile(config.ConfigFile)
+		fileExecConfigs, err := execconf.ReadExecConfFile(config.ConfigFile)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"configFilePath": config.ConfigFile,
@@ -57,7 +58,7 @@ func getExecConfigs(r *http.Request) ([]ExecConf, error) {
 	}
 
 	if info, _ := os.Stat(config.ConfigDir); info.IsDir() {
-		dirConfigs, err := readExecConfDir(config.ConfigDir)
+		dirConfigs, err := execconf.ReadExecConfDir(config.ConfigDir)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"configDirPath": config.ConfigDir,
@@ -67,7 +68,7 @@ func getExecConfigs(r *http.Request) ([]ExecConf, error) {
 		execConfigs = append(execConfigs, dirConfigs...)
 	}
 
-	var output []ExecConf
+	var output []execconf.ExecConf
 
 	for _, execConf := range execConfigs {
 		if execConf.Job == job {
@@ -78,7 +79,7 @@ func getExecConfigs(r *http.Request) ([]ExecConf, error) {
 	return output, nil
 }
 
-func getCmd(execConf ExecConf) (*exec.Cmd, error) {
+func getCmd(execConf execconf.ExecConf) (*exec.Cmd, error) {
 	cmd := &exec.Cmd{
 		Path: filepath.Join(execConf.Command),
 	}
@@ -106,7 +107,7 @@ func getCmd(execConf ExecConf) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
-func runJob(execConf ExecConf, finish chan int) (*ProcessOutput, error) {
+func runJob(execConf execconf.ExecConf, finish chan int) (*ProcessOutput, error) {
 	cmd, err := getCmd(execConf)
 
 	if err != nil {
@@ -153,7 +154,7 @@ func scanIO(io io.Reader, c chan []byte, done chan int) {
 	done <- 1
 }
 
-func hasConfigs(execConfigs []ExecConf) bool {
+func hasConfigs(execConfigs []execconf.ExecConf) bool {
 	return len(execConfigs) > 0
 }
 
@@ -185,7 +186,7 @@ func writeProcessOutput(outputs *ProcessOutput, loggers execLoggers) {
 	}
 }
 
-func extendExecConfigs(r *http.Request, execConfigs []ExecConf) ([]ExecConf, error) {
+func extendExecConfigs(r *http.Request, execConfigs []execconf.ExecConf) ([]execconf.ExecConf, error) {
 	body, err := getJSONBody(r)
 
 	if err != nil {
@@ -239,9 +240,8 @@ func subscribe() *redis.PubSub {
 	go func() {
 		select {
 		case msg := <-ch:
-			var job Job
+			var job execjob.Job
 
-			fmt.Println(msg.Payload)
 			err := json.Unmarshal([]byte(msg.Payload), &job)
 
 			if err != nil {
