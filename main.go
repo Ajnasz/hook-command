@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -26,6 +27,7 @@ var redisClient *redis.Client
 
 const hookTokenHeaderName string = "X-HOOK-TOKEN"
 const hookJobHeaderName string = "X-HOOK-JOB"
+const jobChannelName = "job"
 
 // ErrNoExecConf an error which used when no execution configuration foiund for a key
 var ErrNoExecConf = errors.New("No execConf found")
@@ -213,9 +215,7 @@ func testToken(r *http.Request) *MiddlewareError {
 }
 
 func init() {
-	err := envconfig.Process("HCMD", &config)
-
-	if err != nil {
+	if err := envconfig.Process("HCMD", &config); err != nil {
 		log.Fatal(err)
 	}
 
@@ -224,6 +224,35 @@ func init() {
 		Password: config.RedisPassword,
 		DB:       config.RedisDB,
 	})
+
+}
+
+func subscribe() *redis.PubSub {
+	pubsub := redisClient.Subscribe(jobChannelName)
+
+	if _, err := pubsub.Receive(); err != nil {
+		log.Fatal(err)
+	}
+
+	ch := pubsub.Channel()
+
+	go func() {
+		select {
+		case msg := <-ch:
+			var job Job
+
+			fmt.Println(msg.Payload)
+			err := json.Unmarshal([]byte(msg.Payload), &job)
+
+			if err != nil {
+				log.Error(err)
+			} else {
+				go execJob(job.JobName, job.RedisKey, job.ExecConfigs)
+			}
+		}
+	}()
+
+	return pubsub
 }
 
 func main() {
@@ -246,6 +275,7 @@ func main() {
 	}
 
 	http.HandleFunc("/", RequestHandler)
+	pubsub := subscribe()
 
 	done := make(chan error)
 	osSignals := make(chan os.Signal, 1)
@@ -266,6 +296,7 @@ func main() {
 	case <-osSignals:
 		log.Info("Stop server")
 		daemon.SdNotify(false, "STOPPING=1")
+		pubsub.Close()
 		l.Close()
 	}
 }

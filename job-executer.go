@@ -15,7 +15,6 @@ func execJob(jobName, redisKey string, execConfigs []ExecConf) {
 	stdLogger.Hooks.Add(hook)
 
 	loggers := getExecLoggers(jobName, stdLogger)
-	loggers.Info.Write([]byte("execute job package"))
 
 	for _, execConf := range execConfigs {
 		loggers.Info.Write([]byte(fmt.Sprintf("execute job %s", execConf.Command)))

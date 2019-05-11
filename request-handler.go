@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"math/rand"
 	"net/http"
@@ -26,6 +27,13 @@ func randomString(l int) string {
 	}
 
 	return string(bytes)
+}
+
+// Job a struct to represent a job in json
+type Job struct {
+	JobName     string     `json:"jobName"`
+	RedisKey    string     `json:"redisKey"`
+	ExecConfigs []ExecConf `json:"execConfigs"`
 }
 
 func handleNewJobRequest(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +74,13 @@ func handleNewJobRequest(w http.ResponseWriter, r *http.Request) {
 	redisKey := randomString(16)
 	w.Write([]byte(redisKey))
 
-	go execJob(jobName, redisKey, execConfigs)
+	msg, err := json.Marshal(Job{jobName, redisKey, execConfigs})
+
+	if err != nil {
+		http.Error(w, "InternalServerError", http.StatusInternalServerError)
+		return
+	}
+	redisClient.Publish(jobChannelName, msg)
 
 	log.WithFields(log.Fields{
 		"job": r.Header.Get(hookJobHeaderName),
